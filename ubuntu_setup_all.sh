@@ -1,8 +1,8 @@
 # Setup conda env
-conda create -n efnet python=3.9
+conda create -n efnet python=3.9 -y
 conda activate efnet
 # Install pytorch
-conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
+conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia -y
 # Install req
 pip install -r requirements.txt
 # Install BasicSR package

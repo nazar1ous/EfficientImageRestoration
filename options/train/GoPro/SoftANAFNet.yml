@@ -5,7 +5,7 @@
 # Copyright 2018-2020 BasicSR Authors
 # ------------------------------------------------------------------------
 # general settings
-name: NAFNet-GoPro-width32
+name: SoftANAFNet-GoPro-width32
 model_type: ImageRestorationModel
 scale: 1
 num_gpu: 1
@@ -43,7 +43,7 @@ datasets:
 
 
 network_g:
-  type: NAFNetLocal
+  type: SoftANAFNetLocal
   width: 32
   enc_blk_nums: [1, 1, 1, 28]
   middle_blk_num: 1
@@ -97,7 +97,7 @@ val:
 logger:
   print_freq: 200
   save_checkpoint_freq: !!float 5e3
-  use_tb_logger: false
+  use_tb_logger: true
   wandb:
     project: efficient_image_restoration_UCU
     resume_id: ~

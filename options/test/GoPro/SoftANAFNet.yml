@@ -5,43 +5,26 @@
 # Copyright 2018-2020 BasicSR Authors
 # ------------------------------------------------------------------------
 # general settings
-name: NAFNet-GoPro-width32
+name: SoftANAFNet-GoPro-width32
 model_type: ImageRestorationModel
 scale: 1
-num_gpu: 1
-manual_seed: 42
+num_gpu: 1 # set num_gpu: 0 for cpu mode
+manual_seed: 10
 
+# dataset and data loader settings
 datasets:
-  train:
-    name: gopro-train
-    type: PairedImageDataset
-    dataroot_gt: ./datasets/GoPro/train/sharp_crops.lmdb
-    dataroot_lq: ./datasets/GoPro/train/blur_crops.lmdb
 
-    filename_tmpl: '{}'
-    io_backend:
-      type: lmdb
-
-    gt_size: 256
-    use_flip: true
-    use_rot: true
-
-    # data loader
-    use_shuffle: true
-    num_worker_per_gpu: 4
-    batch_size_per_gpu: 2
-    dataset_enlarge_ratio: 1
-    prefetch_mode: ~
-
-  val:
+  test:
     name: gopro-test
     type: PairedImageDataset
+
     dataroot_gt: ./datasets/GoPro/test/target.lmdb
     dataroot_lq: ./datasets/GoPro/test/input.lmdb
+
     io_backend:
       type: lmdb
 
-
+# network structures
 network_g:
   type: NAFNetLocal
   width: 32
@@ -51,36 +34,14 @@ network_g:
 
 # path
 path:
-  pretrain_network_g: ~
+  pretrain_network_g: experiments/SoftANAFNet-GoPro-width32/models/net_g_latest.pth
   strict_load_g: true
   resume_state: ~
 
-# training settings
-train:
-  optim_g:
-    type: AdamW
-    lr: !!float 1e-3
-    weight_decay: !!float 1e-3
-    betas: [0.9, 0.9]
-
-  scheduler:
-    type: TrueCosineAnnealingLR
-    T_max: 200000
-    eta_min: !!float 1e-7
-
-  total_iter: 200000
-  warmup_iter: -1 # no warm up
-
-  # losses
-  pixel_opt:
-    type: PSNRLoss
-    loss_weight: 1
-    reduction: mean
-
 # validation settings
 val:
-  val_freq: !!float 2e4
   save_img: false
+  grids: false
 
 
   metrics:
@@ -92,15 +53,6 @@ val:
       type: calculate_ssim
       crop_border: 0
       test_y_channel: false
-
-# logging settings
-logger:
-  print_freq: 200
-  save_checkpoint_freq: !!float 5e3
-  use_tb_logger: false
-  wandb:
-    project: efficient_image_restoration_UCU
-    resume_id: ~
 
 # dist training settings
 dist_params:

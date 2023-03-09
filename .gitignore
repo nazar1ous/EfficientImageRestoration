@@ -7,3 +7,6 @@ logs/
 *.sh
 datasets
 basicsr.egg-info
+wandb/
+tb_logger/
+

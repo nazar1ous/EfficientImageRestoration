@@ -7,7 +7,7 @@ pip install -r requirements.txt &&
 python setup.py develop --no_cuda_ext
 
 cd datasets/
-pip install gdown
+pip install gdown wandb
 # Download Test data
 gdown https://drive.google.com/file/d/1abXSfeRGrzj2mQ2n2vIBHtObU6vXvr7C/view?usp=sharing --fuzzy &&
     unzip GoPro-test-lmdb.zip

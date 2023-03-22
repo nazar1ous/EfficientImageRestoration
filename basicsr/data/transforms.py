@@ -8,7 +8,7 @@ import cv2
 import random
 from cv2 import rotate
 import numpy as np
-
+import torchvision.transforms.functional as TF
 
 def mod_crop(img, scale):
     """Mod crop images, used during testing.
@@ -245,3 +245,25 @@ def img_rotate(img, angle, center=None, scale=1.0):
     return rotated_img
 
 
+def center_crop(img, dim):
+	"""Returns center cropped image
+	Args:
+	img: image to be center cropped
+	dim: dimensions (width, height) to be cropped
+	"""
+	width, height = img.shape[1], img.shape[0]
+
+	# process crop width and height for max available dimension
+	crop_width = dim[0] if dim[0]<img.shape[1] else img.shape[1]
+	crop_height = dim[1] if dim[1]<img.shape[0] else img.shape[0] 
+	mid_x, mid_y = int(width/2), int(height/2)
+	cw2, ch2 = int(crop_width/2), int(crop_height/2) 
+	crop_img = img[mid_y-ch2:mid_y+ch2, mid_x-cw2:mid_x+cw2]
+	return crop_img
+
+
+def paired_center_crop(image, gt, size=(256, 256)):
+    
+    image_crop = center_crop(image, size)
+    gt_crop = center_crop(gt, size)
+    return image_crop, gt_crop

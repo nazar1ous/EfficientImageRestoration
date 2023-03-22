@@ -1,0 +1,22 @@
+LearningRateMonitor:
+  class_name: lightning.pytorch.callbacks.LearningRateMonitor
+  use: True
+  params:
+    logging_interval: epoch
+
+ModelCheckpoint:
+  class_name: lightning.pytorch.callbacks.ModelCheckpoint
+  use: True
+  params:
+    monitor: "val_psnr"
+    save_top_k: 2
+    dirpath: save_models/
+    filename: ${generator.name}-{epoch}-{train_loss:.3f}-{val_psnr:.3f}-{val_ssim:.3f}
+    mode: "max"
+
+StochasticWeightAveraging:
+  class_name: lightning.pytorch.callbacks.StochasticWeightAveraging
+  use: True
+  params:
+    swa_lrs: !!float 1e-2
+    swa_epoch_start: 0.8

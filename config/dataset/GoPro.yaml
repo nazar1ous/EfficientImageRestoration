@@ -1,0 +1,21 @@
+train:
+  params:
+    dataroot_gt: "./datasets/GoPro/train/sharp_crops.lmdb"
+    dataroot_lq: "./datasets/GoPro/train/blur_crops.lmdb"
+    io_backend: {"type": "lmdb"}
+    gt_size: 256
+    use_flip: True
+    use_rot: True
+
+val:
+  params:
+    dataroot_gt: "./datasets/GoPro/test/target.lmdb"
+    dataroot_lq: "./datasets/GoPro/test/input.lmdb"
+    io_backend: {"type": "lmdb"}
+    center_crop_size: 256
+
+test:
+  params:
+    dataroot_gt: "./datasets/GoPro/test/target.lmdb"
+    dataroot_lq: "./datasets/GoPro/test/input.lmdb"
+    io_backend: {"type": "lmdb"}

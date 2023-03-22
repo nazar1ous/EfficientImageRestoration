@@ -1,0 +1,5 @@
+class_name: basicsr.models.losses.losses.PSNRLoss
+params:
+  loss_weight: 1
+  reduction: "mean"
+lambda: 1.0

@@ -1,0 +1,11 @@
+defaults:
+  - generator: SoftANAFNetLocal-width32
+  - dataset: GoPro
+  - dataloader: default
+  - trainer: default
+  - optimizer: AdamW
+  - scheduler: CosineAnnealingLR
+  - preloading: default
+  - callbacks: default
+  - logger: tensorboard
+  - loss: psnr

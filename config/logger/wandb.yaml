@@ -1,0 +1,5 @@
+class_name: pytorch_lightning.loggers.WandbLogger
+params: 
+  log_model: "all"
+  project: "efficient_image_restoration_UCU"
+  name: HelloWorld3

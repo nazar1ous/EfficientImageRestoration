@@ -1,0 +1,8 @@
+params:
+  precision: 32
+  max_epochs: 300 # Iterations * batch_size / train_size
+  accelerator: "gpu"
+  log_every_n_steps: 1
+  check_val_every_n_epoch: 5
+  accumulate_grad_batches: 8
+  gradient_clip_val: 0.5

@@ -1,0 +1,1 @@
+python train.py hydra.job.chdir=False

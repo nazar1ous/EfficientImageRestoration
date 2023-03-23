@@ -19,9 +19,12 @@ def seed_everything(seed=42):
     torch.backends.cudnn.benchmark = False
 
 
+seed_everything(42)
 CONFIG_PATH = "config"
+# torch._dynamo.config.verbose=False
+# torch._dynamo.config.suppress_errors = True
 
-
+import time
 @hydra.main(config_path=CONFIG_PATH, config_name="config")
 def run_train(cfg : DictConfig) -> None:
 
@@ -39,12 +42,13 @@ def run_train(cfg : DictConfig) -> None:
     # os.chdir(get_original_cwd())
     # print(os.getcwd())
     if ckpt_path:
-        model = DeblurModel.load_from_checkpoint(ckpt_path)
+        model: DeblurModel = DeblurModel.load_from_checkpoint(ckpt_path)
+        # model = torch.compile(model, mode="default")
         trainer = Trainer()
         trainer.fit(model, ckpt_path=ckpt_path)
     else:
         model = DeblurModel(cfg)
-        # model_compiled = torch.compile(model, mode="reduce-overhead")
+        # model.model = torch.compile(model.model, mode="default")
 
         trainer = Trainer(
             **cfg.trainer.params,
@@ -52,15 +56,15 @@ def run_train(cfg : DictConfig) -> None:
             callbacks=trainer_callbacks,
 
         )
+        # start = time.time()
         trainer.fit(model)
-
+        # print(time.time() - start)
+    # print('here')
+    # model = torch.compile(model, disable=True, dynamic=True)
     trainer.test(model)
 
 
-
-
 if __name__ == "__main__":
-    seed_everything(42)
     run_train()
 
     

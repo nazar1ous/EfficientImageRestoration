@@ -3,7 +3,7 @@ from basicsr.data.GoPro_deblur_dataset import PairedImageDataset
 from torch.utils.data import DataLoader
 import torch
 
-from torchmetrics.functional import peak_signal_noise_ratio, structural_similarity_index_measure
+from basicsr.metrics.psnr_ssim import calculate_psnr, calculate_ssim
 from omegaconf import DictConfig
 import importlib
 
@@ -43,8 +43,8 @@ class DeblurModel(pl.LightningModule):
 
         loss_class = get_class(self.config.loss.class_name)
         self.loss = loss_class(**self.config.loss.params)
-        self.psnr_func = peak_signal_noise_ratio
-        self.ssim_func = structural_similarity_index_measure
+        self.psnr_func = calculate_psnr
+        self.ssim_func = calculate_ssim
 
         self.optimizer = None
         self.scheduler = None
@@ -87,26 +87,26 @@ class DeblurModel(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         blur, gt = batch['lq'], batch['gt']
         restored = self(blur)
-        restored = torch.clamp(restored, min=0, max=1)
-        gt = torch.clamp(gt, min=0, max=1)
-        psnr, ssim = self.psnr_func(restored, gt, data_range=1), self.ssim_func(restored, gt, data_range=1)
         loss = self.loss(restored, gt)
 
-        self.log("val_loss", loss.detach().cpu(), on_epoch=True, prog_bar=True)
-        self.log("val_psnr", psnr, on_epoch=True, prog_bar=True)
-        self.log("val_ssim", ssim, on_epoch=True, prog_bar=True)
+        restored = torch.clamp(restored, min=0, max=1) * 255
+        gt = torch.clamp(gt, min=0, max=1) * 255
+        psnr, ssim = self.psnr_func(restored, gt, 0), self.ssim_func(restored, gt, 0)
+
+        self.log("val_loss", loss, on_epoch=True, prog_bar=True, batch_size=1)
+        self.log("val_psnr", psnr, on_epoch=True, prog_bar=True, batch_size=1)
+        self.log("val_ssim", ssim, on_epoch=True, prog_bar=True, batch_size=1)
         return loss
     
     def test_step(self, batch, batch_idx):
         blur, gt = batch['lq'], batch['gt']
         restored = self(blur)
-        restored = torch.clamp(restored, min=0, max=1)
-        gt = torch.clamp(gt, min=0, max=1)
-        psnr, ssim = self.psnr_func(restored, gt, data_range=1), self.ssim_func(restored, gt, data_range=1)
+        restored = torch.clamp(restored, min=0, max=1) * 255
+        gt = torch.clamp(gt, min=0, max=1) * 255
+        psnr, ssim = self.psnr_func(restored, gt, 0), self.ssim_func(restored, gt, 0)
 
-        self.log("test_psnr", psnr, on_epoch=True, prog_bar=True)
-        self.log("test_ssim", ssim, on_epoch=True, prog_bar=True)
-        
+        self.log("test_psnr", psnr, on_epoch=True, prog_bar=True, batch_size=1)
+        self.log("test_ssim", ssim, on_epoch=True, prog_bar=True, batch_size=1)
 
     def configure_optimizers(self):
         optimizer_class = get_class(self.config.optimizer.class_name)
@@ -115,6 +115,3 @@ class DeblurModel(pl.LightningModule):
         scheduler_class = get_class(self.config.scheduler.class_name)
         self.scheduler = scheduler_class(self.optimizer, **self.config.scheduler.params)
         return [self.optimizer], [self.scheduler]
-
-
-

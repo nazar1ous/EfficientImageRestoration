@@ -200,6 +200,7 @@ if __name__ == '__main__':
     # macs = float(macs[:-4])
 
     # print(macs, params)
+    # net = torch.compile(net, mode="reduce-overhead")
 
     device = torch.device("cuda")
     net.to(device)
@@ -208,10 +209,12 @@ if __name__ == '__main__':
     # INIT LOGGERS
     starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
     repetitions = 1000
+    model = net
     timings=np.zeros((repetitions,1))
     #GPU-WARM-UP
-    for _ in range(100):
-        _ = model(dummy_input)
+    with torch.no_grad():
+        for _ in range(100):
+            _ = model(dummy_input)
     # MEASURE PERFORMANCE
     with torch.no_grad():
         for rep in range(repetitions):

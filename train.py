@@ -1,13 +1,11 @@
 import torch
-from lightning_model import DeblurModel, get_class
+from basicsr.models.lightning.deblur_model import DeblurModel, get_class
 from lightning import Trainer
 import random
 import os
 import numpy as np
 import hydra
-from omegaconf import DictConfig, OmegaConf
-import wandb
-from hydra.utils import get_original_cwd, to_absolute_path
+from omegaconf import DictConfig
 
 
 def seed_everything(seed=42):
@@ -23,7 +21,6 @@ def seed_everything(seed=42):
 
 CONFIG_PATH = "config"
 
-# hydra.run.dir = '.'
 
 @hydra.main(config_path=CONFIG_PATH, config_name="config")
 def run_train(cfg : DictConfig) -> None:

@@ -11,3 +11,6 @@ scipy
 tb-nightly
 tqdm
 yapf
+hydra-core
+pytorch-lightning
+lightning

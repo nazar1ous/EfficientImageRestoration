@@ -9,10 +9,11 @@ ModelCheckpoint:
   use: True
   params:
     monitor: "val_psnr"
-    save_top_k: 2
+    save_top_k: 5
     dirpath: save_models/
     filename: ${generator.name}-{epoch}-{train_loss:.3f}-{val_psnr:.3f}-{val_ssim:.3f}
     mode: "max"
+    save_last: True
 
 StochasticWeightAveraging:
   class_name: lightning.pytorch.callbacks.StochasticWeightAveraging

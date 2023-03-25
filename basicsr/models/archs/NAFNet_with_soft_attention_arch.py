@@ -20,36 +20,34 @@ from basicsr.models.archs.arch_util import LayerNorm2d
 from basicsr.models.archs.local_arch import Local_Base
 from basicsr.models.archs.NAFNet_arch import NAFBlock, SimpleGate
 
-class SoftAttention(nn.Module):
-    def __init__(self, c):
+
+class Attention_block(nn.Module):
+    def __init__(self, g_channel, x_channel, out_channel):
         super().__init__()
-        self.g_conv = nn.Conv2d(in_channels=c*2, out_channels=c*2, kernel_size=1, padding=0, stride=1, bias=True)
-        self.x_conv = nn.Conv2d(in_channels=c, out_channels=c*2, kernel_size=1, stride=2, padding=0,
-                               bias=True)
-        self.out_conv = nn.Conv2d(in_channels=c*2, out_channels=1, kernel_size=1, stride=1, padding=0,
-                               bias=True)
-        # self.upsample_layer = nn.functional.upsample_bilinear
-        # self.upsample_layer = nn.Sequential(
-        #             nn.Conv2d(c*2, c * 2, 1, bias=False),
-        #             nn.PixelShuffle(2)
-        #         )
-        self.relu = nn.ReLU6(inplace=True)
-        self.sigm = nn.Sigmoid()
+        self.W_g = nn.Sequential(
+            nn.Conv2d(g_channel, out_channel, kernel_size=1, stride=1, padding=0, bias=True),
+        )
 
-    
-    def forward(self, x, g):
-        # print(x.shape, g.shape)
-        g_conv = self.g_conv(g)
-        x_conv = self.x_conv(x)
-        # print(f'{g_conv.shape=}')
-        # print(f'{x_conv.shape=}')
-        res = g_conv + x_conv
+        self.W_x = nn.Sequential(
+            nn.Conv2d(x_channel, out_channel, kernel_size=1, stride=2, padding=0, bias=True),
+        )
 
-        res = self.relu(res)
-        res = self.out_conv(res)
-        res = self.sigm(res)
-        return x * nn.functional.interpolate(res, scale_factor=2, mode="bilinear")
+        self.psi = nn.Sequential(
+            nn.Conv2d(out_channel, 1, kernel_size=1, stride=1, padding=0, bias=True),
+            nn.Sigmoid()
+        )
+        self.norm = nn.BatchNorm2d(out_channel)
+        self.relu = nn.ReLU(inplace=True)
+        self.out_layer = nn.Conv2d(out_channel, out_channel, kernel_size=1, stride=1, padding=0, bias=True)
 
+    def forward(self, g, x):
+        g1 = self.W_g(g)
+        x1 = self.W_x(x)
+        concat_xg = self.relu(g1 + x1)
+        psi = self.psi(concat_xg)
+        psi_upsampled = nn.functional.interpolate(psi, scale_factor=2, mode="bilinear")
+        y = x * psi_upsampled
+        return self.norm(self.out_layer(y))
 
 class SoftANAFNet(nn.Module):
 
@@ -72,7 +70,7 @@ class SoftANAFNet(nn.Module):
             channel_n = (width) * (2 ** chan_idx)
             # print(channel_n)
             self.soft_attentions.append(
-                SoftAttention(channel_n)
+                Attention_block(channel_n * 2, channel_n, channel_n)
             )
 
         chan = width
@@ -188,6 +186,8 @@ if __name__ == '__main__':
     net = SoftANAFNet(img_channel=img_channel, width=width, middle_blk_num=middle_blk_num,
                       enc_blk_nums=enc_blks, dec_blk_nums=dec_blks)
     model = net
+    # net = torch.compile(net, mode="reduce-overhead")
+
 
 
     # inp_shape = (3, 256, 256)

@@ -21,10 +21,8 @@ def seed_everything(seed=42):
 
 seed_everything(42)
 CONFIG_PATH = "config"
-# torch._dynamo.config.verbose=False
-# torch._dynamo.config.suppress_errors = True
 
-import time
+
 @hydra.main(config_path=CONFIG_PATH, config_name="config")
 def run_train(cfg : DictConfig) -> None:
 
@@ -36,30 +34,23 @@ def run_train(cfg : DictConfig) -> None:
     
     logger_class = get_class(cfg.logger.class_name)
     logger = logger_class(**cfg.logger.params)
-    
+
     ckpt_path = cfg.preloading.pl_path
     torch.set_float32_matmul_precision('high')
-    # os.chdir(get_original_cwd())
-    # print(os.getcwd())
+
+    trainer = Trainer(
+        **cfg.trainer.params,
+        logger=logger,
+        callbacks=trainer_callbacks,
+
+    )
     if ckpt_path:
-        model: DeblurModel = DeblurModel.load_from_checkpoint(ckpt_path)
-        # model = torch.compile(model, mode="default")
-        trainer = Trainer()
-        trainer.fit(model, ckpt_path=ckpt_path)
+        model = DeblurModel.load_from_checkpoint(ckpt_path)
     else:
         model = DeblurModel(cfg)
-        # model.model = torch.compile(model.model, mode="default")
 
-        trainer = Trainer(
-            **cfg.trainer.params,
-            logger=logger,
-            callbacks=trainer_callbacks,
-
-        )
-        # start = time.time()
-        trainer.fit(model)
-        # print(time.time() - start)
-    # print('here')
+    model = torch.compile(model, mode="default")
+    trainer.fit(model, ckpt_path=ckpt_path)
     # model = torch.compile(model, disable=True, dynamic=True)
     trainer.test(model)
 

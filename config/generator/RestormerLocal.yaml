@@ -1,0 +1,14 @@
+name: RestormerLocal
+class_name: basicsr.models.archs.Restormer_arch.RestormerLocal
+params:
+  base_size: 384
+  inp_channels: 3
+  out_channels: 3
+  dim: 48
+  num_blocks: [4,6,6,8]
+  num_refinement_blocks: 4
+  heads: [1,2,4,8]
+  ffn_expansion_factor: 2.66
+  bias: False
+  LayerNorm_type: "WithBias"
+  dual_pixel_task: False

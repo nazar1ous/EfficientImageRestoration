@@ -1,4 +1,4 @@
 class_name: pytorch_lightning.loggers.TensorBoardLogger
 params: 
   save_dir: 'tb_logs'
-  name: HelloWorld2
+  name: ${generator.name}

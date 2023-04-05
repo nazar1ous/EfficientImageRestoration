@@ -9,4 +9,6 @@ datasets
 basicsr.egg-info
 wandb/
 tb_logger/
-
+tb_logs/
+outputs/
+save_models/

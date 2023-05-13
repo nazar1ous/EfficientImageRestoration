@@ -10,7 +10,7 @@ from torch.nn import functional as F
 import numpy as np
 
 from basicsr.models.losses.loss_util import weighted_loss
-
+import importlib
 _reduction_modes = ['none', 'mean', 'sum']
 
 
@@ -114,3 +114,106 @@ class PSNRLoss(nn.Module):
 
         return self.loss_weight * self.scale * torch.log(((pred - target) ** 2).mean(dim=(1, 2, 3)) + 1e-8).mean()
 
+
+class FFTLoss(nn.Module):
+    def __init__(self, loss_weight=1):
+        super().__init__()
+        self.criterion = nn.L1Loss()
+        self.weight = loss_weight
+
+    def forward(self, pred, target):
+        target_fft = torch.fft.rfft2(target, norm="backward")
+        pred_fft = torch.fft.rfft2(pred, norm="backward")
+
+        return self.weight * torch.mean(abs(target_fft - pred_fft))
+
+
+class CharbonnierLoss(nn.Module):
+    """Charbonnier Loss (L1)"""
+
+    def __init__(self, loss_weight=1.0, reduction='mean', eps=1e-3):
+        super(CharbonnierLoss, self).__init__()
+        self.eps = eps
+
+    def forward(self, x, y):
+        diff = x - y
+        # loss = torch.sum(torch.sqrt(diff * diff + self.eps))
+        loss = torch.mean(torch.sqrt((diff * diff) + (self.eps*self.eps)))
+        return loss
+
+
+class CharFreqLoss(nn.Module):
+    """L1 (mean absolute error, MAE) loss of fft.
+
+    Args:
+        loss_weight (float): Loss weight for L1 loss. Default: 1.0.
+        reduction (str): Specifies the reduction to apply to the output.
+            Supported choices are 'none' | 'mean' | 'sum'. Default: 'mean'.
+    """
+
+    def __init__(self, loss_weight=1.0, reduction='mean'):
+        super(CharFreqLoss, self).__init__()
+        if reduction not in ['none', 'mean', 'sum']:
+            raise ValueError(f'Unsupported reduction mode: {reduction}. '
+                             f'Supported ones are: {_reduction_modes}')
+
+        self.loss_weight = loss_weight
+        self.reduction = reduction
+        self.l1_loss = CharbonnierLoss(loss_weight, reduction)
+
+    def forward(self, pred, target):
+        diff = torch.fft.rfft2(pred) - torch.fft.rfft2(target)
+        loss = torch.mean(torch.abs(diff))
+        # print(loss)
+        return self.loss_weight * loss * 0.01 + self.l1_loss(pred, target)
+
+
+class PsnrFreqLoss(nn.Module):
+    """L1 (mean absolute error, MAE) loss of fft.
+
+    Args:
+        loss_weight (float): Loss weight for L1 loss. Default: 1.0.
+        reduction (str): Specifies the reduction to apply to the output.
+            Supported choices are 'none' | 'mean' | 'sum'. Default: 'mean'.
+    """
+
+    def __init__(self, loss_weight=1.0, reduction='mean'):
+        super(PsnrFreqLoss, self).__init__()
+        if reduction not in ['none', 'mean', 'sum']:
+            raise ValueError(f'Unsupported reduction mode: {reduction}. '
+                             f'Supported ones are: {_reduction_modes}')
+
+        self.loss_weight = loss_weight
+        self.reduction = reduction
+        self.psnr_loss = PSNRLoss(loss_weight, reduction)
+
+    def forward(self, pred, target):
+        diff = torch.fft.rfft2(pred) - torch.fft.rfft2(target)
+        loss = torch.mean(torch.abs(diff))
+        # print(loss)
+        return self.loss_weight * loss * 0.01 + self.psnr_loss(pred, target)
+
+def get_class(class_route):
+    values = class_route.split('.')
+    module_path = '.'.join(values[:-1])
+    class_name = values[-1]
+
+    module = importlib.import_module(module_path)
+    class_ = getattr(module, class_name)
+    return class_
+
+
+class CombinedLoss(nn.Module):
+    def __init__(self, losses_str_list):
+        super().__init__()
+        self.losses = [get_class(loss_str)() for loss_str in losses_str_list]
+
+    def forward(self, pred, target):
+        value = 0
+        for loss in self.losses:
+            value += loss(pred, target)
+        return value
+
+
+if __name__ == "__main__":
+    CombinedLoss(('basicsr.models.losses.losses.PSNRLoss', 'basicsr.models.losses.losses.FFTLoss'))

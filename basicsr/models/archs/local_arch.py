@@ -45,8 +45,11 @@ class AvgPool2d(nn.Module):
         if self.fast_imp:  # Non-equivalent implementation but faster
             h, w = x.shape[2:]
             if self.kernel_size[0] >= h and self.kernel_size[1] >= w:
+                print('here1')
+
                 out = F.adaptive_avg_pool2d(x, 1)
             else:
+                print('here')
                 r1 = [r for r in self.rs if h % r == 0][0]
                 r2 = [r for r in self.rs if w % r == 0][0]
                 # reduction_constraint
@@ -76,6 +79,7 @@ class AvgPool2d(nn.Module):
         return out
 
 def replace_layers(model, base_size, train_size, fast_imp, **kwargs):
+    # pass
     for n, m in model.named_children():
         if len(list(m.children())) > 0:
             ## compound module, go inside it

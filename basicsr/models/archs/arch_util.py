@@ -1,7 +1,3 @@
-
-from einops import rearrange
-from basicsr.models.archs.win_util import *
-import numpy as np
 # ------------------------------------------------------------------------
 # Copyright (c) 2022 megvii-model. All Rights Reserved.
 # ------------------------------------------------------------------------
@@ -15,7 +11,15 @@ from torch.nn import functional as F
 from torch.nn import init as init
 from torch.nn.modules.batchnorm import _BatchNorm
 
+from basicsr.utils import get_root_logger
 
+# try:
+#     from basicsr.models.ops.dcn import (ModulatedDeformConvPack,
+#                                         modulated_deform_conv)
+# except ImportError:
+#     # print('Cannot import dcn. Ignore this warning if dcn is not used. '
+#     #       'Otherwise install BasicSR with compiling dcn.')
+#
 
 @torch.no_grad()
 def default_init_weights(module_list, scale=1, bias_fill=0, **kwargs):
@@ -228,6 +232,35 @@ def pixel_unshuffle(x, scale):
     x_view = x.view(b, c, h, scale, w, scale)
     return x_view.permute(0, 1, 3, 5, 2, 4).reshape(b, out_channel, h, w)
 
+
+# class DCNv2Pack(ModulatedDeformConvPack):
+#     """Modulated deformable conv for deformable alignment.
+#
+#     Different from the official DCNv2Pack, which generates offsets and masks
+#     from the preceding features, this DCNv2Pack takes another different
+#     features to generate offsets and masks.
+#
+#     Ref:
+#         Delving Deep into Deformable Alignment in Video Super-Resolution.
+#     """
+#
+#     def forward(self, x, feat):
+#         out = self.conv_offset(feat)
+#         o1, o2, mask = torch.chunk(out, 3, dim=1)
+#         offset = torch.cat((o1, o2), dim=1)
+#         mask = torch.sigmoid(mask)
+#
+#         offset_absmean = torch.mean(torch.abs(offset))
+#         if offset_absmean > 50:
+#             logger = get_root_logger()
+#             logger.warning(
+#                 f'Offset abs mean is {offset_absmean}, larger than 50.')
+#
+#         return modulated_deform_conv(x, offset, mask, self.weight, self.bias,
+#                                      self.stride, self.padding, self.dilation,
+#                                      self.groups, self.deformable_groups)
+
+
 class LayerNormFunction(torch.autograd.Function):
 
     @staticmethod
@@ -315,184 +348,3 @@ def measure_inference_speed(model, data, max_iter=200, log_interval=50):
                 flush=True)
             break
     return fps
-class BasicConv(nn.Module):
-    def __init__(self, in_channel, out_channel, kernel_size, stride, bias=False, norm=False, relu=True, relu_method=nn.ReLU, transpose=False,
-                 channel_shuffle_g=0, norm_method=nn.BatchNorm2d, groups=1):
-        super(BasicConv, self).__init__()
-        self.channel_shuffle_g = channel_shuffle_g
-        self.norm = norm
-        # if bias and norm:
-        #     bias = False
-
-        padding = kernel_size // 2
-        layers = list()
-        if transpose:
-            padding = kernel_size // 2 - 1
-            layers.append(
-                nn.ConvTranspose2d(in_channel, out_channel, kernel_size, padding=padding, stride=stride, bias=bias, groups=groups))
-        else:
-            layers.append(
-                nn.Conv2d(in_channel, out_channel, kernel_size, padding=padding, stride=stride, bias=bias, groups=groups))
-        if norm:
-            layers.append(norm_method(out_channel))
-
-        if relu:
-            if relu_method == nn.ReLU:
-                layers.append(nn.ReLU(inplace=True))
-            elif relu_method == nn.LeakyReLU:
-                layers.append(nn.LeakyReLU(inplace=True))
-            else:
-                layers.append(relu_method())
-        self.main = nn.Sequential(*layers)
-
-    def forward(self, x):
-        return self.main(x)
-class conv_bench(nn.Module):
-    def __init__(self, n_feat, kernel_size=3, act_method=nn.ReLU, bias=False):
-        super(conv_bench, self).__init__()
-        self.conv1 = nn.Conv2d(n_feat, n_feat, kernel_size=kernel_size, stride=1, padding=kernel_size//2, bias=bias)
-        self.conv2 = nn.Conv2d(n_feat, n_feat, kernel_size=kernel_size, stride=1, padding=kernel_size//2, bias=bias)
-        self.act = act_method()
-
-    def forward(self, x):
-        return self.conv2(self.act(self.conv1(x)))
-class fft_bench_complex_mlp(nn.Module):
-    def __init__(self, dim, dw=1, norm='backward', act_method=nn.ReLU, window_size=None, bias=False):
-        super(fft_bench_complex_mlp, self).__init__()
-        self.act_fft = act_method()
-        self.window_size = window_size
-        # dim = out_channel
-        hid_dim = dim * dw
-        # print(dim, hid_dim)
-        self.complex_weight1_real = nn.Parameter(torch.Tensor(dim, hid_dim))
-        self.complex_weight1_imag = nn.Parameter(torch.Tensor(dim, hid_dim))
-        self.complex_weight2_real = nn.Parameter(torch.Tensor(hid_dim, dim))
-        self.complex_weight2_imag = nn.Parameter(torch.Tensor(hid_dim, dim))
-        init.kaiming_uniform_(self.complex_weight1_real, a=math.sqrt(16))
-        init.kaiming_uniform_(self.complex_weight1_imag, a=math.sqrt(16))
-        init.kaiming_uniform_(self.complex_weight2_real, a=math.sqrt(16))
-        init.kaiming_uniform_(self.complex_weight2_imag, a=math.sqrt(16))
-        if bias:
-            self.b1_real = nn.Parameter(torch.zeros((1, 1, 1, hid_dim)), requires_grad=True)
-            self.b1_imag = nn.Parameter(torch.zeros((1, 1, 1, hid_dim)), requires_grad=True)
-            self.b2_real = nn.Parameter(torch.zeros((1, 1, 1, dim)), requires_grad=True)
-            self.b2_imag = nn.Parameter(torch.zeros((1, 1, 1, dim)), requires_grad=True)
-        self.bias = bias
-        self.norm = norm
-        # self.min = inf
-        # self.max = -inf
-    def forward(self, x):
-        _, _, H, W = x.shape
-        if self.window_size is not None and (H != self.window_size or W != self.window_size):
-            x, batch_list = window_partitionx(x, self.window_size)
-        y = torch.fft.rfft2(x, norm=self.norm)
-        dim = 1
-        weight1 = torch.complex(self.complex_weight1_real, self.complex_weight1_imag)
-        weight2 = torch.complex(self.complex_weight2_real, self.complex_weight2_imag)
-        if self.bias:
-            b1 = torch.complex(self.b1_real, self.b1_imag)
-            b2 = torch.complex(self.b2_real, self.b2_imag)
-        y = rearrange(y, 'b c h w -> b h w c')
-        y = y @ weight1
-        if self.bias:
-            y = y + b1
-        y = torch.cat([y.real, y.imag], dim=dim)
-
-        y = self.act_fft(y)
-        y_real, y_imag = torch.chunk(y, 2, dim=dim)
-        y = torch.complex(y_real, y_imag)
-        y = y @ weight2
-        if self.bias:
-            y = y + b2
-        y = rearrange(y, 'b h w c -> b c h w')
-        # y = torch.fft.irfft2(y, s=(H, W), norm=self.norm)
-        if self.window_size is not None and (H != self.window_size or W != self.window_size):
-            y = torch.fft.irfft2(y, s=(self.window_size, self.window_size), norm=self.norm)
-            y = window_reversex(y, self.window_size, H, W, batch_list)
-        else:
-            y = torch.fft.irfft2(y, s=(H, W), norm=self.norm)
-        return y
-class fft_bench_complex_mlp_flops(nn.Module):
-    def __init__(self, dim, dw=1, norm='backward', act_method=nn.ReLU, window_size=0, bias=False):
-        super(fft_bench_complex_mlp_flops, self).__init__()
-        self.act_fft = act_method()
-        self.window_size = window_size
-        hid_dim = dim * dw
-        self.complex_weight1 = nn.Conv2d(dim*2, hid_dim*2, 1, bias=bias)
-        self.complex_weight2 = nn.Conv2d(hid_dim*2, dim*2, 1, bias=bias)
-
-        self.bias = bias
-        self.norm = norm
-        # self.min = inf
-        # self.max = -inf
-    def forward(self, x):
-        _, _, H, W = x.shape
-        if self.window_size > 0 and (H != self.window_size or W != self.window_size):
-            x, batch_list = window_partitionx(x, self.window_size)
-        y = torch.fft.rfft2(x, norm=self.norm)
-        dim = 1
-        y = torch.cat([y.real, y.imag], dim=dim)
-        y = self.complex_weight1(y)
-        y = self.act_fft(y)
-        y = self.complex_weight2(y)
-        y_real, y_imag = torch.chunk(y, 2, dim=dim)
-        y = torch.complex(y_real, y_imag)
-        # y = torch.fft.irfft2(y, s=(H, W), norm=self.norm)
-        if self.window_size > 0 and (H != self.window_size or W != self.window_size):
-            y = torch.fft.irfft2(y, s=(self.window_size, self.window_size), norm=self.norm)
-            y = window_reversex(y, self.window_size, H, W, batch_list)
-        else:
-            y = torch.fft.irfft2(y, s=(H, W), norm=self.norm)
-        return y
-
-class ResBlock(nn.Module):
-    def __init__(self, n_feat, kernel_size=3, norm='backward'): # 'backward'
-        super(ResBlock, self).__init__()
-        self.main = conv_bench(n_feat, kernel_size=kernel_size)
-        # self.main_fft = fft_bench_complex_mlp(n_feat, norm)
-
-    def forward(self, x):
-        res = self.main(x) # + self.main_fft(x)
-        # res += x
-        return res + x
-class ResFourier_complex(nn.Module):
-    def __init__(self, n_feat, kernel_size=3, norm='backward'): # 'backward'
-        super(ResFourier_complex, self).__init__()
-        self.main = conv_bench(n_feat, kernel_size=kernel_size, bias=False)
-        self.main_fft = fft_bench_complex_mlp(n_feat, norm=norm)
-
-    def forward(self, x):
-
-        res = self.main(x) + self.main_fft(x)
-        # res += x
-        return res + x
-class ResFourier_complex_gelu(nn.Module):
-    def __init__(self, n_feat, kernel_size=3, norm='backward'): # 'backward'
-        super().__init__()
-        act_method = nn.GELU
-        self.main = conv_bench(n_feat, kernel_size=kernel_size, act_method=act_method)
-        self.main_fft = fft_bench_complex_mlp(n_feat, norm, act_method=act_method)
-
-    def forward(self, x):
-
-        res = self.main(x) + self.main_fft(x)
-        # res += x
-        return res + x
-
-class SimpleGate(nn.Module):
-    def __init__(self,):
-        super().__init__()
-    def forward(self, x):
-        x1, x2 = x.chunk(2, dim=1)
-        return x1 * x2
-
-class Sin_ACT(nn.Module):
-    def __init__(self, alpha=1, beta=3.1415926536):
-        super().__init__()
-        self.alpha = alpha
-        self.beta = beta
-    def forward(self, x):
-        return torch.sin(x*self.beta) * self.beta
-
-if __name__ == '__main__':
-    inp = torch.randn((2, 3, 32, 16))

@@ -376,6 +376,12 @@ class Stripformer(nn.Module):
         x = F.pad(x, (0, mod_pad_w, 0, mod_pad_h))
         return x
 
+from basicsr.models.archs.local_arch import Local_Base
+class StripformerLocal(Local_Base, Stripformer):
+    def __init__(self, *args, base_size=256, train_size=(1, 3, 256, 256), fast_imp=False, **kwargs):
+        Local_Base.__init__(self)
+        Stripformer.__init__(self)
+        self.convert(base_size=base_size, fast_imp=fast_imp, auto_pad=False, train_size=train_size)
 
 
 if __name__ == '__main__':

@@ -62,10 +62,11 @@ class LayerNorm(nn.Module):
             self.body = BiasFree_LayerNorm(dim)
         else:
             self.body = WithBias_LayerNorm(dim)
-
+        # self.to_3d = lambda x:
+        # self.to_4d = lambda x, h, w:
     def forward(self, x):
         h, w = x.shape[-2:]
-        return to_4d(self.body(to_3d(x)), h, w)
+        return rearrange(self.body(rearrange(x, 'b c h w -> b (h w) c')), 'b (h w) c -> b c h w', h=h, w=w)
 
 
 ##########################################################################

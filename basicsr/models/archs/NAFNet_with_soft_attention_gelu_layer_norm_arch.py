@@ -40,7 +40,7 @@ class Attention_block(nn.Module):
         # self.relu = nn.ReLU(inplace=True)
         self.gelu = nn.GELU()
         self.out_layer = nn.Conv2d(out_channel, out_channel, kernel_size=1, stride=1, padding=0, bias=True)
-        self.upsample = nn.ConvTranspose2d(1, out_channels=1, kernel_size=2, stride=2)
+        # self.upsample =
 
 
     def forward(self, g, x):
@@ -49,8 +49,8 @@ class Attention_block(nn.Module):
         concat_xg = self.gelu(g1 + x1)
         # concat_xg = self.relu(g1 + x1)
         psi = self.psi(concat_xg)
-        psi_upsampled = self.upsample(psi)
-        # psi_upsampled = nn.functional.interpolate(psi, scale_factor=2, mode="bilinear")
+        # psi_upsampled = self.upsample(psi)
+        psi_upsampled = nn.functional.interpolate(psi, scale_factor=2, mode="bilinear")
         y = x * psi_upsampled
         return self.norm(self.out_layer(y))
 

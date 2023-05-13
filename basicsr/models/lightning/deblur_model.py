@@ -55,11 +55,10 @@ class DeblurModel(pl.LightningModule):
         self.train_dataset = None
         self.val_dataset = None
         self.test_dataset = None
-        print(self.hparams)
+        # print(self.hparams)
 
     def setup(self, stage=None):
         if stage == "fit":
-            # print(self.config.dataset.train.params)
             self.train_dataset = PairedImageDataset("train", self.config.dataset.train.params)
             self.val_dataset = PairedImageDataset("val", self.config.dataset.val.params)
         else:
@@ -86,6 +85,7 @@ class DeblurModel(pl.LightningModule):
     
     def validation_step(self, batch, batch_idx):
         blur, gt = batch['lq'], batch['gt']
+
         restored = self(blur)
         loss = self.loss(restored, gt)
 
@@ -99,8 +99,19 @@ class DeblurModel(pl.LightningModule):
         return loss
     
     def test_step(self, batch, batch_idx):
+        # Stripformer
+        # blur, gt = batch['lq'] - 0.5, batch['gt'] - 0.5
+        # restored = self(blur) + 0.5
+        # restored = torch.clamp(restored, min=0, max=1) * 255
+        # gt = torch.clamp(gt+0.5, min=0, max=1) * 255
+
         blur, gt = batch['lq'], batch['gt']
+        # print(torch.max(blur), torch.min(gt))
         restored = self(blur)
+        # print(torch.max(restored), torch.min(restored))
+
+        # raise Exception('')
+
         restored = torch.clamp(restored, min=0, max=1) * 255
         gt = torch.clamp(gt, min=0, max=1) * 255
         psnr, ssim = self.psnr_func(restored, gt, 0), self.ssim_func(restored, gt, 0)

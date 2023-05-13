@@ -1,6 +1,7 @@
 import onnxruntime
 from onnxruntime.quantization import QuantFormat, QuantType, quantize_static
 from onnxruntime.quantization import CalibrationDataReader
+from onnxruntime.quantization import quant_pre_process
 import torch
 import numpy as np
 import hydra
@@ -9,7 +10,8 @@ from pathlib import Path
 
 from train import seed_everything
 from basicsr.models.lightning.deblur_model import DeblurModel
-
+from basicsr.models.archs.NAFNet_optimized_arch import NAFNet
+import subprocess
 
 CONFIG_PATH = "../config"
 SAVE_DIR = "optimized_models_onnx"
@@ -32,21 +34,25 @@ def assert_equal_conversion(model_onnx_path, input_tensor, output_tensor_torch):
 def export_onnx(torch_model, out_model_onnx_path):
     device = torch.device("cpu")
     batch_size = 1
-    x = torch.randn(batch_size, 3, 256, 256, requires_grad=False).to(device)
-    torch_model.to(device)
+    x = torch.randn(batch_size, 3, 256, 256).to(device)
     torch_model.eval()
+    torch_model.to(device)
+
     torch_out = torch_model(x)
+
     # Export the model
-    torch.onnx.export(torch_model,  # model being run
-                      x,  # model input (or a tuple for multiple inputs)
-                      out_model_onnx_path,  # where to save the model (can be a file or file-like object)
-                      export_params=True,  # store the trained parameter weights inside the model file
-                      opset_version=12,  # the ONNX version to export the model to
-                      do_constant_folding=True,  # whether to execute constant folding for optimization
-                      input_names=['input'],  # the model's input names
-                      output_names=['output'],  # the model's output names
-                      dynamic_axes={'input': {0: 'batch_size'},  # variable length axes
-                                    'output': {0: 'batch_size'}})
+    with torch.no_grad():
+        torch.onnx.export(torch_model,  # model being run
+                          x,  # model input (or a tuple for multiple inputs)
+                          out_model_onnx_path,  # where to save the model (can be a file or file-like object)
+                          export_params=True,  # store the trained parameter weights inside the model file
+                          opset_version=16,  # the ONNX version to export the model to
+                          do_constant_folding=True,  # whether to execute constant folding for optimization
+                          input_names=['input'],  # the model's input names
+                          output_names=['output'],  # the model's output names
+                          dynamic_axes={'input': {0: 'batch_size'},  # variable length axes
+                                        'output': {0: 'batch_size'}},
+                          )
     assert_equal_conversion(out_model_onnx_path, x, torch_out)
 
 
@@ -58,17 +64,18 @@ class ResNet50DataReader(CalibrationDataReader):
         session = onnxruntime.InferenceSession(model_path, None)
         (_, _, height, width) = session.get_inputs()[0].shape
         self.input_name = session.get_inputs()[0].name
-        self.datasize = len(self.dataset)
+        # The whole dataset is not needed for quantization
+        self.datasize = 100
 
     @staticmethod
-    def iter_dataset(dataset, inp_name):
-        for i in range(len(dataset)):
+    def iter_dataset(dataset, inp_name, length):
+        for i in range(length):
             tnsr = np.expand_dims(dataset.__getitem__(i)['lq'], axis=0)
             yield {inp_name: tnsr}
 
     def get_next(self):
         if self.enum_data is None:
-            self.enum_data = self.iter_dataset(self.dataset, self.input_name)
+            self.enum_data = self.iter_dataset(self.dataset, self.input_name, self.datasize)
         return next(self.enum_data, None)
 
     def rewind(self):
@@ -81,9 +88,9 @@ def quantize_torch_model(model_onnx_path, out_model_quantized_onnx_path, torch_t
         out_model_quantized_onnx_path,
         ResNet50DataReader(torch_train_dataset, model_onnx_path),
         quant_format=QuantFormat.QDQ,
-        per_channel=False,
+        per_channel=True,
         weight_type=QuantType.QInt8,
-        optimize_model=False,
+        optimize_model=True,
     )
 
 
@@ -98,14 +105,26 @@ def get_optimized_models(cfg: DictConfig):
     model.setup('fit')
     save_dir = Path(SAVE_DIR)
     train_dataset = model.train_dataset
-    model_name = cfg.generator.name
+    model_name = model.config.generator.name
+    print(model_name)
     ext_name = '.onnx'
+    # torch_model = NAFNet()
     torch_model = model.model
+    inp = torch.rand(1, 3, 256, 256)
+
     out_model_onnx_path = save_dir.joinpath(model_name + '-fp=32' + ext_name)
+    out_model_onnx_path_infer = save_dir.joinpath(model_name + 'infer' + ext_name)
+
     out_model_quantized_onnx_path = save_dir.joinpath(model_name + '-fp=int8' + ext_name)
     export_onnx(torch_model, str(out_model_onnx_path))
 
-    quantize_torch_model(str(out_model_onnx_path), str(out_model_quantized_onnx_path), train_dataset)
+    try:
+        quant_pre_process(str(out_model_onnx_path), str(out_model_onnx_path_infer), skip_symbolic_shape=False, verbose=3)
+    except:
+        print("Incomplete symbolic shape inference for this model architecture")
+        out_model_onnx_path_infer = out_model_onnx_path
+
+    quantize_torch_model(str(out_model_onnx_path_infer), str(out_model_quantized_onnx_path), train_dataset)
 
 
 if __name__ == "__main__":

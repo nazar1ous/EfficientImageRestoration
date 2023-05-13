@@ -1,5 +1,5 @@
 name: Stripformer
-class_name: basicsr.models.archs.Stripformer_arch.Stripformer
+class_name: basicsr.models.archs.Stripformer_arch.StripformerLocal
 params:
   head_num: 5
   dim: 320

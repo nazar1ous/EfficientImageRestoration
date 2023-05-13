@@ -1,0 +1,7 @@
+name: SoftANAFNetLocal-width16-blocks18
+class_name: basicsr.models.archs.NAFNet_with_soft_attention_gelu_layer_norm_arch.SoftANAFNetLocal
+params:
+  width: 16
+  enc_blk_nums: [1, 1, 1, 10]
+  middle_blk_num: 1
+  dec_blk_nums: [1, 1, 1, 1]

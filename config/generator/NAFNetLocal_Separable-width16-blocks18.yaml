@@ -1,0 +1,7 @@
+name: NAFNetLocal_Separable-width16-blocks18
+class_name: basicsr.models.archs.NAFNet_DepthWiseConv_arch.NAFNetLocal
+params:
+  width: 16
+  enc_blk_nums: [1, 1, 1, 10]
+  middle_blk_num: 1
+  dec_blk_nums: [1, 1, 1, 1]

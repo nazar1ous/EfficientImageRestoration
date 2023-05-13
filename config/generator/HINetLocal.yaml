@@ -1,4 +1,4 @@
-name: MPRNetLocal
+name: HINetLocal
 class_name: basicsr.models.archs.HINet_arch.HINetLocal
 params:
   base_size: 384

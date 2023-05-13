@@ -24,14 +24,13 @@ CONFIG_PATH = "config"
 
 
 @hydra.main(config_path=CONFIG_PATH, config_name="config")
-def run_train(cfg : DictConfig) -> None:
-
+def run_train(cfg: DictConfig) -> None:
     trainer_callbacks = []
     for _, callback_dict in cfg.callbacks.items():
         if callback_dict['use']:
             class_ = get_class(callback_dict['class_name'])
             trainer_callbacks.append(class_(**callback_dict['params']))
-    
+
     logger_class = get_class(cfg.logger.class_name)
     logger = logger_class(**cfg.logger.params)
 
@@ -49,13 +48,10 @@ def run_train(cfg : DictConfig) -> None:
     else:
         model = DeblurModel(cfg)
 
-    model = torch.compile(model, mode="default")
+    # model = torch.compile(model, mode="default")
     trainer.fit(model, ckpt_path=ckpt_path)
-    # model = torch.compile(model, disable=True, dynamic=True)
     trainer.test(model)
 
 
 if __name__ == "__main__":
     run_train()
-
-    

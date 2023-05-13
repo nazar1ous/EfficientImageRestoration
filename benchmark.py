@@ -54,7 +54,7 @@ def get_peak_memory_usage(model, input_shape):
 
 
 @hydra.main(config_path=CONFIG_PATH, config_name="config")
-def run_test(cfg: DictConfig) -> nn.Module:
+def run_test(cfg: DictConfig):
     trainer_callbacks = []
     for _, callback_dict in cfg.callbacks.items():
         if callback_dict['use']:
@@ -77,8 +77,9 @@ def run_test(cfg: DictConfig) -> nn.Module:
         model = DeblurModel.load_from_checkpoint(ckpt_path)
     else:
         model = DeblurModel(cfg)
+    torch.save(model.model.state_dict(), f"save_models/{model.config.generator.name}.pth")
 
-    # trainer.test(model)
+    trainer.test(model)
 
     torch_model = model.model
 
@@ -87,7 +88,7 @@ def run_test(cfg: DictConfig) -> nn.Module:
 
     macs, params = get_model_complexity_info(torch_model, inp_shape, verbose=False, print_per_layer_stat=False)
     peak_memory_usage = get_peak_memory_usage(torch_model, tensor_shape)
-    mean, std = measure_inference_time(torch_model, tensor_shape)
+    mean, std = measure_inference_time(torch_model, tensor_shape, device_str="cpu")
 
     params = float(params[:-3])
     macs = float(macs[:-4])
